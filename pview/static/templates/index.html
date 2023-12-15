@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Process View</title>
+        <script>
+            if (!Object.hasOwn(window, 'pview')) {
+                console.log("Creating a new pview namespace from index.html");
+                window.pview = {};
+            }
+        </script>
+        <link rel="stylesheet" href="/scripts/jquery/jquery-ui.css">
+        <script src="/scripts/jquery/jquery.js"></script>
+        <script src="/scripts/jquery/jquery-ui.min.js"></script>
+        <link rel="stylesheet" href="/style/pview.css">
+        <script type="module" src="/scripts/utility.js"></script>
+        <script type="module" src="/scripts/value.js"></script>
+        <script type="module" src="/scripts/elements.js"></script>
+        <script type="module" src="/scripts/client.js"></script>
+        <script type="module" src="/scripts/responses.js"></script>
+        <script type="module" src="/scripts/requests.js"></script>
+        <script type="module" src="/scripts/pview.js"></script>
+    </head>
+    <body>
+        <div id="on-screen">
+            <div id="global-header" class="pview-header pview-global-header">
+                <h1>Process View</h1>
+            </div>
+            <div id="global-toolbar" class="pview-toolbar pview-global-toolbar">
+                <button id="load-button" class="pview-when-connected">Load</button>
+                <input class="pview-when-disconnected" type="text" id="connection-path" value="ws">
+                <button class="pview-when-disconnected" id="connect-button">Connect</button>
+            </div>
+            <div id="no-content-block">
+                <h1>
+                    No files have been loaded.
+                </h1>
+            </div>
+            <div id="content">
+                <ul id="content-tabs">
+                </ul>
+            </div>
+        </div>
+        <div id="loading-modal" class="pview-dialog pview-modal pview-loading-dialog">
+            <p>
+                Loading the <span id="currently-loading-dataset"></span> dataset
+            </p>
+            <div id="loading-progress-bar"></div>
+            <button id="close-loading-modal-button">OK</button>
+        </div>
+        <div id="load-dialog" class="pview-dialog pview-modal pview-input-dialog" title="Load Netcdf File">
+            <div id="load-dialog-content" class="pview-dialog-content">
+                <input id="open-path" name="open-path">
+                <button id="open-dataset-button">Load</button>
+            </div>
+        </div>
+        <div id="error-dialog" class="pview-dialog pview-modal pview-error-dialog" title="Error">
+            <div id="error-dialog-content" class="pview-dialog-content pview-error-content">
+                <b>Message ID:</b> <span id="failed-message-id" class="pview-error-details"></span>
+                <br>
+                <b>Failed on:</b> <span id="failed_message_type" class="pview-error-details"></span>
+                <p id="error-message" class="pview-error-message"></p>
+            </div>
+        </div>
+    </body>
+</html>

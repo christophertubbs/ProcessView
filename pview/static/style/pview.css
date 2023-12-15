@@ -1,0 +1,100 @@
+:root {
+    --border-color: #C5C5C5;
+    --empty-container-color: #f6f6f6;
+    --toolbar-height: 33px;
+    --toolbar-background-color: #cecece;
+    font-family: sans-serif;
+}
+
+#on-screen {
+    height: 98vh;
+    overflow: hidden;
+}
+
+.pview-tab.pview-container {
+    height: 75vh !important;
+    width: 100%;
+    display: flex;
+}
+
+.pview-field-wrapper {
+    overflow-y: auto;
+    width: 99%;
+}
+
+#load-dialog-content {
+    display: flex;
+    width: 100%;
+    padding: 10px;
+}
+
+#load-dialog {
+    overflow-x: hidden;
+}
+
+input#open-path {
+    width: 100%;
+}
+
+.ui-autocomplete {
+    max-height: 200px;
+    overflow-y: scroll;
+    overflow-x: hidden;
+}
+
+.ui-widget-overlay {
+    opacity: 0.5;
+}
+
+#loading-modal {
+    width: 50%;
+}
+
+#no-content-block {
+    border: 2px solid var(--border-color);
+    background-color: var(--empty-container-color);
+    height: 84vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pview-toolbar {
+    height: var(--toolbar-height);
+    background-color: var(--toolbar-background-color);
+}
+
+.pview-toolbar button, .pview-toolbar input {
+    height: var(--toolbar-height);
+}
+
+.pview-table, .pview-table-row, .pview-table-cell {
+    border: 1px solid var(--border-color);
+    border-collapse: collapse
+}
+
+.pview-table {
+    background-color: var(--empty-container-color);
+}
+
+.pview-table-cell {
+    background-color: white;
+}
+
+.pview-table-row th, .pview-table-row td {
+    padding: 5px;
+    cursor: pointer;
+}
+
+.pview-key-value-table {
+    width: 100%
+}
+
+.pview-key-table-cell {
+    font-weight: bold;
+    width: 10%
+}
+
+.ui-icon-close {
+    cursor: pointer;
+}
