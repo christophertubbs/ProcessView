@@ -18,6 +18,28 @@ B_IN_MB = B_IN_KB * 1000
 B_IN_GB = B_IN_MB * 1000
 
 
+def byte_size_to_text(byte_count) -> str:
+        if byte_count is None:
+            return "??B"
+
+        memory_usage = byte_count
+        memory_unit = "B"
+
+        if memory_usage > 1000:
+            memory_unit = "KB"
+            memory_usage /= 1000
+
+        if memory_usage > 1000:
+            memory_unit = "MB"
+            memory_usage /= 1000
+
+        if memory_usage > 1000:
+            memory_unit = "GB"
+            memory_usage /= 1000
+
+        return f"{memory_usage:.2f}{memory_unit}"
+
+
 @dataclasses.dataclass
 class PSField:
     keyword: str
@@ -88,22 +110,7 @@ class ProcessEntry:
 
     @property
     def memory_amount(self) -> str:
-        memory_usage = self.memory_usage
-        memory_unit = "B"
-
-        if memory_usage > 1000:
-            memory_unit = "KB"
-            memory_usage /= 1000
-
-        if memory_usage > 1000:
-            memory_unit = "MB"
-            memory_usage /= 1000
-
-        if memory_usage > 1000:
-            memory_unit = "GB"
-            memory_usage /= 1000
-
-        return f"{memory_usage}{memory_unit}"
+        return byte_size_to_text(self.memory_usage)
 
     @classmethod
     def from_process(cls, process: Process) -> typing.Optional[ProcessEntry]:
@@ -118,22 +125,33 @@ class ProcessEntry:
         thread_count = safe_data['num_threads'] if safe_data['num_threads'] else 1
         file_descriptor_count = safe_data['num_fds'] if safe_data['num_fds'] is not None else 0
         open_file_count = len(safe_data['open_files']) if safe_data['open_files'] is not None else 0
-        arguments = safe_data['cmdline'][1:] if safe_data['cmdline'] is not None else ""
+        arguments = safe_data['cmdline'][1:] if safe_data['cmdline'] is not None else []
+        exe = safe_data.get("exe")
+
+        if isinstance(exe, str) and "/" in exe:
+            name = exe.strip().split("/")[-1]
+        else:
+            name = safe_data.get("name")
+
+        ppid = safe_data.get("ppid")
+        username = safe_data.get("username")
+        pid = safe_data.get("pid")
+        status = safe_data.get("status")
 
         try:
             return cls(
-                process_id=process.pid,
-                parent_process_id=process.ppid(),
-                name=process.name(),
+                process_id=pid,
+                parent_process_id=ppid,
+                name=name,
                 current_cpu_percent=cpu_percent,
                 thread_count=thread_count,
-                user=process.username(),
+                user=username,
                 memory_usage=memory_usage,
                 memory_percent=memory_percent,
                 open_file_count=open_file_count,
                 file_descriptor_count=file_descriptor_count,
-                status=process.status(),
-                executable=process.exe(),
+                status=status,
+                executable=exe,
                 arguments=arguments
             )
         except Exception as e:
@@ -151,6 +169,8 @@ class ProcessEntry:
 
     @property
     def executable_parts(self) -> typing.Sequence[str]:
+        if not self.executable:
+            return []
         return self.executable.strip().strip("/").split("/")
 
 
@@ -176,7 +196,7 @@ class ProcessStatus:
 
         while current_pid != 1 and current_pid in self.__processes:
             current_process = self.__processes.pop(current_pid, None)
-
+            print(f"Ignoring {current_process}")
             if current_process is None:
                 current_pid = 1
             else:
