@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import typing
 
-from . import application_details
+import application_details
 
 
 class ApplicationArguments:

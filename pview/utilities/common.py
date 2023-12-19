@@ -11,7 +11,7 @@ import re
 
 from aiohttp import web
 
-from ..application_details import ALLOW_REMOTE
+from pview.application_details import ALLOW_REMOTE
 
 
 _CLASS_TYPE = typing.TypeVar("_CLASS_TYPE")

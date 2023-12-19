@@ -11,6 +11,8 @@ from aiohttp.web_routedef import RouteDef
 
 from application_details import ALLOW_REMOTE
 
+from utilities.common import LOCAL_ONLY_IDENTIFIER
+
 
 class LocalApplication(web.Application):
     """
@@ -22,7 +24,7 @@ class LocalApplication(web.Application):
             for route in routes:
                 handler = route.handler
 
-                if not getattr(handler, common.LOCAL_ONLY_IDENTIFIER, False):
+                if not getattr(handler, LOCAL_ONLY_IDENTIFIER, False):
                     invalid_routes.append(route.path)
 
             if len(invalid_routes) > 0:

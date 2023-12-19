@@ -282,7 +282,8 @@ async function loadDataClicked(event) {
 }
 
 document.addEventListener("DOMContentLoaded", async function(event) {
-    await initialize();
+    //await initialize();
+    await loadPS()
 });
 
 function closeLoadingModal() {
@@ -297,4 +298,11 @@ function launchLoadDialog() {
     }
 
     openDialog("#load-dialog")
+}
+
+const diagnostics = {}
+
+async function loadPS() {
+    const psData = await fetch("/ps").then((response) => response.json());
+    diagnostics['plot'] = Plotly.newPlot("content", psData);
 }

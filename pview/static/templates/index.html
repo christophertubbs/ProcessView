@@ -3,6 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Process View</title>
+        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
         <script>
             if (!Object.hasOwn(window, 'pview')) {
                 console.log("Creating a new pview namespace from index.html");
@@ -31,14 +32,7 @@
                 <input class="pview-when-disconnected" type="text" id="connection-path" value="ws">
                 <button class="pview-when-disconnected" id="connect-button">Connect</button>
             </div>
-            <div id="no-content-block">
-                <h1>
-                    No files have been loaded.
-                </h1>
-            </div>
-            <div id="content">
-                <ul id="content-tabs">
-                </ul>
+            <div id="content" style="height:85vh; width:85vw;">
             </div>
         </div>
         <div id="loading-modal" class="pview-dialog pview-modal pview-loading-dialog">

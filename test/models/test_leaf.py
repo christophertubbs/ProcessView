@@ -2,6 +2,7 @@ import unittest
 
 from pview.utilities import ps
 from pview.models.tree import ProcessLeaf
+from pview.models.tree import Sunburst
 
 class TestProcessLeaf(unittest.TestCase):
     def test_creation(self):
@@ -26,8 +27,17 @@ class TestProcessLeaf(unittest.TestCase):
 
         self.assertEqual(
             leaf.get_sunburst_data(),
-            {"path": [leaf.name], "parent": [''], "value": [leaf.memory_usage]}
+            {
+                Sunburst.ids_key(): leaf.process_id,
+                Sunburst.parent_key(): '',
+                Sunburst.values_key(): leaf.memory_usage,
+                Sunburst.names_key(): leaf.name
+            }
         )
+
+        sunburst = Sunburst()
+
+        leaf.add_sunburst_data(sunburst=sunburst)
 
         copied_leaf = leaf.copy_leaf()
 
