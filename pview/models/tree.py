@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import typing
+from collections import defaultdict
 
 import pandas
 
@@ -93,7 +94,23 @@ class Sunburst:
 
         return self.__sunburst_map[key]
 
+    @property
+    def has_traces(self) -> bool:
+        return any([
+            max([len(values) for values in items.values()]) > 0
+            for items in self.__traces.values()
+        ])
+
+    def add_trace(self, name: str):
+        if name not in self.__traces:
+            self.__traces[name] = {
+                key: []
+                for key in self.sunburst_keys()
+            }
+
     def __init__(self, **kwargs):
+
+        self.__traces: typing.Dict[str, typing.MutableMapping[str, VALUE_SEQUENCE]] = {}
         self.__sunburst_map: typing.MutableMapping[str, VALUE_SEQUENCE] = {
             key: []
             for key in self.sunburst_keys()
@@ -138,7 +155,18 @@ class Sunburst:
     def to_dataframe(self) -> pandas.DataFrame:
         return pandas.DataFrame(self.__sunburst_map)
 
-    def add(self, values: typing.Mapping[str, typing.Union[str, float, int]]):
+    def insert_trace(self, name: str, data: Sunburst) -> Sunburst:
+        if data.has_traces:
+            raise ValueError(f"Cannot add sunburst data to another sunburst if it has traces.")
+
+        self.add_trace(name)
+
+        for key in self.sunburst_keys():
+            self.__traces[name][key].extend(data[key])
+
+        return self
+
+    def add(self, values: typing.Mapping[str, typing.Union[str, float, int]], trace_name: str = None):
         for key in self.sunburst_keys():
             if key not in values:
                 raise ValueError(f"Cannot add values to a sunburst - it is missing a value for the '{key}' key")
@@ -149,39 +177,91 @@ class Sunburst:
                     f"sunburst value - it must be either an int, float, or string"
                 )
 
-        for key in self.sunburst_keys():
-            self.__sunburst_map[key].append(
-                values[key]
-            )
+        if isinstance(trace_name, str):
+            self.add_trace(name=trace_name)
+            for key in self.sunburst_keys():
+                self.__traces[trace_name][key].append(
+                    values[key]
+                )
+        else:
+            for key in self.sunburst_keys():
+                self.__sunburst_map[key].append(
+                    values[key]
+                )
 
-    def to_figure(self) -> graph_objects.Figure:
-        sunburst_figure = graph_objects.Sunburst(
+    def to_figure(self, **kwargs) -> graph_objects.Figure:
+        expected_figure_count = len(self.__traces) + 1
+
+        positions = [
+            divmod(figure_index, 3)
+            for figure_index in range(expected_figure_count)
+        ]
+
+        row_count = max([coordinates[0] for coordinates in positions]) + 1
+
+        figure = graph_objects.Figure()
+
+        figure.update_layout(
+            margin=dict(t=0, l=0, r=0, b=0)
+        )
+
+        position_index = 0
+
+        trace = graph_objects.Sunburst(
             labels=self.names,
             ids=self.ids,
             parents=self.parents,
             values=self.values,
             hovertemplate='%{label}<br>%{text}',
+            name="All",
             text=[
                 byte_size_to_text(value)
                 for value in self.values
-            ]
+            ],
+            maxdepth=3,
+            **kwargs
         )
 
-        figure = graph_objects.Figure(
-            sunburst_figure
-        )
+        figure.add_trace(trace=trace)
 
-        figure.update_layout(margin=dict(t=0, l=0, r=0, b=0))
+        position_index += 1
+
+        for trace_name, trace in self.__traces.items():
+            trace = graph_objects.Sunburst(
+                labels=trace[self.names_key()],
+                ids=trace[self.ids_key()],
+                parents=trace[self.parent_key()],
+                values=trace[self.values_key()],
+                hovertemplate='%{label}<br>%{text}',
+                name=trace_name,
+                text=[
+                    byte_size_to_text(value)
+                    for value in trace[self.values_key()]
+                ],
+                **kwargs
+            )
+            figure.add_trace(trace=trace)
+            position_index += 1
 
         return figure
 
-    def plot(self, div_id: str = None, **kwargs) -> str:
-        sunburst_figure = self.to_figure()
+    def plot(self, div_id: str = None, figure_kwargs: typing.Dict[str, typing.Any] = None, **kwargs) -> str:
+        if figure_kwargs is None:
+            figure_kwargs = {}
+
+        sunburst_figure = self.to_figure(**figure_kwargs)
 
         if div_id is None:
             div_id = "ps_view"
 
-        return sunburst_figure.to_html(include_plotlyjs=False, full_html=False, div_id=div_id, default_width="95vw", default_height="95vh", **kwargs)
+        return sunburst_figure.to_html(
+            include_plotlyjs=False,
+            full_html=False,
+            div_id=div_id,
+            default_width="95vw",
+            default_height="95vh",
+            **kwargs
+        )
 
     def to_entries(self):
         return (
@@ -195,6 +275,11 @@ class Sunburst:
     def combine(self, other: Sunburst) -> Sunburst:
         for key in self.sunburst_keys():
             self.__sunburst_map[key].extend(other[key])
+
+        for trace_name, trace in other.__traces.items():
+            self.add_trace(name=trace_name)
+            for key in self.sunburst_keys():
+                self.__traces[trace_name][key].extend(trace[key])
 
         return self
 
@@ -366,14 +451,14 @@ class ProcessLeaf(BaseModel):
             for process_id in self.process_id
         ]
 
-    def add_sunburst_data(self, sunburst: Sunburst, value_attribute: str = None) -> Sunburst:
+    def add_sunburst_data(self, sunburst: Sunburst, value_attribute: str = None, trace_name: str = None) -> Sunburst:
         sunburst_data = self.get_sunburst_data(value_attribute=value_attribute)
 
         if isinstance(sunburst_data, typing.Mapping):
-            sunburst.add(values=sunburst_data)
+            sunburst.add(values=sunburst_data, trace_name=trace_name)
         elif isinstance(sunburst_data, typing.Sequence):
             for sunburst_entry in sunburst_data:  # type: typing.Mapping[str, typing.Union[str, float, int]]
-                sunburst.add(values=sunburst_entry)
+                sunburst.add(values=sunburst_entry, trace_name=trace_name)
 
         return sunburst
 
@@ -450,23 +535,26 @@ class ProcessNode(BaseModel):
     def plot(cls) -> str:
         return cls.sunburst().to_html()
 
-    def add_sunburst_data(self, sunburst: Sunburst, value_attribute: str = None) -> Sunburst:
+    def add_sunburst_data(self, sunburst: Sunburst, value_attribute: str = None, trace_name: str = None) -> Sunburst:
         if value_attribute is None:
             value_attribute = "memory_usage"
 
         if not hasattr(self, value_attribute):
             raise ValueError(f"Cannot add a node to sunburst data - it has no '{value_attribute}' value")
 
-        sunburst.add({
-            sunburst.names_key(): self.name,
-            sunburst.ids_key(): self.node_id,
-            sunburst.parent_key(): self._parent.node_id if self._parent else '',
-            sunburst.values_key(): getattr(self, value_attribute)
-        })
+        sunburst.add(
+            {
+                sunburst.names_key(): self.name,
+                sunburst.ids_key(): self.node_id,
+                sunburst.parent_key(): self._parent.node_id if self._parent else '',
+                sunburst.values_key(): getattr(self, value_attribute)
+            },
+            trace_name=trace_name
+        )
 
         return sunburst
 
-    def get_sunburst_data(self, value_attribute: str = None) -> Sunburst:
+    def get_sunburst_data(self, value_attribute: str = None, trace_name: str = None) -> Sunburst:
         if value_attribute is None:
             value_attribute = "memory_usage"
 
@@ -480,10 +568,14 @@ class ProcessNode(BaseModel):
         duplicate.collapse()
 
         for current_node, _, leaves in duplicate.walk():
-            current_node.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute)
+            current_node.add_sunburst_data(
+                sunburst=sunburst_data,
+                value_attribute=value_attribute,
+                trace_name=trace_name
+            )
 
             for leaf in leaves:
-                leaf.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute)
+                leaf.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute, trace_name=trace_name)
 
         return sunburst_data
 
@@ -669,8 +761,8 @@ class ProcessNode(BaseModel):
 # TODO: Can this be collapsed into the process node?
 class ProcessTree(BaseModel):
     @classmethod
-    def load(cls, **kwargs) -> ProcessTree:
-        entries = ProcessStatus()
+    def load(cls, include_self: bool = None, **kwargs) -> ProcessTree:
+        entries = ProcessStatus(include_self=include_self)
 
         tree = cls(**kwargs)
 
@@ -794,7 +886,7 @@ class ProcessTree(BaseModel):
         ]
         return candidates[0] if candidates else None
 
-    def add_sunburst_data(self, sunburst: Sunburst, value_attribute: str = None) -> Sunburst:
+    def add_sunburst_data(self, sunburst: Sunburst, value_attribute: str = None, trace_name: str = None) -> Sunburst:
         if value_attribute is None:
             value_attribute = "memory_usage"
 
@@ -802,12 +894,12 @@ class ProcessTree(BaseModel):
             raise ValueError(f"Cannot add a node to sunburst data - it has no '{value_attribute}' value")
 
         value = {
-            sunburst.names_key(): "root",
+            sunburst.names_key(): self.node_id,
             sunburst.parent_key(): "",
             sunburst.values_key(): getattr(self, value_attribute),
-            sunburst.ids_key(): ""
+            sunburst.ids_key(): self.node_id
         }
-        sunburst.add(values=value)
+        sunburst.add(values=value, trace_name=trace_name)
         return sunburst
 
     def plot_json(self, value_attribute: str = None, **kwargs) -> str:
@@ -816,17 +908,51 @@ class ProcessTree(BaseModel):
         json_data = figure.to_json()
         return json_data
 
+    def trim_empty_nodes(self):
+        self.children = [
+            child
+            for child in self.children
+            if isinstance(child, ProcessLeaf)
+               or (
+                       isinstance(child, ProcessNode)
+                       and child.memory_usage is not None
+                       and child.memory_usage != 0
+               )
+        ]
+
     def get_sunburst_data(self, value_attribute: str = None) -> Sunburst:
+        if value_attribute is None:
+            value_attribute = "memory_usage"
+
         sunburst_data = Sunburst()
 
         duplicate = self.duplicate()
 
         duplicate.collapse()
+        duplicate.trim_empty_nodes()
+
+        duplicate.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute)
+
+        for leaf in self.leaves:
+            leaf.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute)
 
         for current_node, child_nodes, leaves in duplicate.walk():
             current_node.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute)
             for leaf in leaves:
                 leaf.add_sunburst_data(sunburst=sunburst_data, value_attribute=value_attribute)
+
+        traces = {}
+
+        for child in sorted(self.nodes, key=lambda node: node.memory_usage, reverse=True):
+            percent_of_total = (getattr(child, value_attribute) / getattr(self, value_attribute)) * 100.0
+            child_sunburst = child.get_sunburst_data(value_attribute=value_attribute)
+            trace_name = child.name if percent_of_total > 10.0 else 'Other'
+
+            sunburst_data.insert_trace(name=trace_name, data=child_sunburst)
+
+        #for node in sorted(self.nodes, key=lambda node: node.memory_usage, reverse=True):
+        #    child_sunburst = node.get_sunburst_data(value_attribute=value_attribute)
+        #    sunburst_data.insert_trace(name=node.name, data=child_sunburst)
 
         return sunburst_data
 

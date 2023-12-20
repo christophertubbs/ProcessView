@@ -25,6 +25,17 @@ LOCAL_ONLY_IDENTIFIER = "local_only"
 VIEW_FUNCTION = typing.Callable[[web.Request], typing.Coroutine[typing.Any, typing.Any, web.Response]]
 
 
+def to_bool(value: typing.Union[int, str, float, bool, bytes] = None):
+    if isinstance(value, bytes):
+        value = value.decode()
+
+    if isinstance(value, str):
+        value = value.lower()
+        return value in ('y', 't', 'yes', 'true', 'on', '1')
+
+    return bool(value)
+
+
 def local_only(view_function: VIEW_FUNCTION) -> VIEW_FUNCTION:
     """
     Ensures that a view function is only accessible via the local machine

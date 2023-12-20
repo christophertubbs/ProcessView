@@ -68,55 +68,6 @@ async function initializeClient() {
     await pview.client.connect("ws");
 }
 
-
-/**
- *
- * @param event {ListValueEvent}
- */
-function handleDatasetAddition(event){
-    if (event.action === ListValueAction.ADD) {
-        if (Array.isArray(event.modifiedValue)) {
-            event.modifiedValue.forEach((response) => addDatasetView(response));
-        }
-        else {
-            addDatasetView(event.modifiedValue)
-        }
-    }
-}
-
-/**
- *
- * @param event {ListValueEvent}
- */
-function handleDatasetRemoval(event) {
-    if (event.action !== ListValueAction.DELETE) {
-        return
-    }
-
-    const dataToRemove = Array.isArray(event.modifiedValue) ? event.modifiedValue : [event.modifiedValue];
-
-    dataToRemove.forEach((response) => {
-        const data_id = response.data_id;
-        const containerSelector = `#${data_id}`;
-        const tabSelector = `#${data_id}-tab`;
-        $(containerSelector).remove();
-        $(tabSelector).remove();
-    })
-
-}
-/**
- *
- * @param response {DataResponse}
- */
-function dataLoaded(response) {
-    if(!pview.datasets.exists((dataResponse) => dataResponse.data_id === response.data_id)) {
-        pview.datasets.push(response);
-    }
-    else {
-        console.warn(`${response.data.name} has already been loaded`);
-    }
-}
-
 function toggleContentLoadStatus() {
     const isEmpty = pview.datasets.isEmpty();
 
@@ -172,38 +123,6 @@ async function handleError(payload) {
     $("#failed-message-id").text(payload['message_id']);
     $("#error-message").text(payload['error_message']);
     openDialog("#error-dialog");
-}
-
-async function getData(path) {
-    const request = new pview.FileSelectionRequest({path: path})
-
-    /**
-     * @type {HTMLSpanElement}
-     */
-    const filenameSpan = document.getElementById("currently-loading-dataset");
-    filenameSpan.innerText = path;
-    request.onSend(function() {
-        openDialog("#loading-modal");
-    });
-
-    await pview.client.send(request);
-}
-
-function initializeOpenPath() {
-    $("#load-dialog").dialog({
-        modal: true,
-        autoOpen: false,
-        width: "60%",
-        height: 150
-    })
-
-    const openPathInput = $("input#open-path");
-
-    openPathInput.autocomplete({
-        source: "navigate"
-    });
-
-    $("#open-dataset-button").on("click", loadDataClicked);
 }
 
 function initializeModals() {
@@ -264,9 +183,7 @@ async function initialize() {
         }
     )
 
-    initializeOpenPath()
     $("#close-loading-modal-button").on("click", closeLoadingModal);
-    $("#load-button").on("click", launchLoadDialog);
 
     await initializeClient();
 }
@@ -282,6 +199,7 @@ async function loadDataClicked(event) {
 }
 
 document.addEventListener("DOMContentLoaded", async function(event) {
+    $("#root-selector").on("change", rootChanged);
     //await initialize();
     await loadPS()
 });
@@ -290,19 +208,61 @@ function closeLoadingModal() {
     closeAllDialogs();
 }
 
-function launchLoadDialog() {
-    const previousPath = localStorage[PREVIOUS_PATH_KEY];
-
-    if (previousPath) {
-        $("input#open-path").val(previousPath);
-    }
-
-    openDialog("#load-dialog")
-}
-
-const diagnostics = {}
+window.diagnostics = {}
 
 async function loadPS() {
     const psData = await fetch("/ps").then((response) => response.json());
-    diagnostics['plot'] = Plotly.newPlot("content", psData);
+    window.pview.traces = {};
+
+    $("#total-cpu-used").text(psData.cpu_percent);
+    $("#total-memory-used").text(psData.memory_usage);
+
+    window.diagnostics['plotData'] = psData;
+
+    $("#root-selector > *").remove()
+
+    for (let dataIndex = 0; dataIndex < psData.data.length; dataIndex++) {
+        let name = psData.data[dataIndex].name;
+        let trace = {
+            data: [psData.data[dataIndex]],
+            layout: psData.layout
+        }
+        window.pview.traces[name] = trace;
+        $("#root-selector").append(`<option value="${name}">${name}</option>`)
+    }
+
+    const firstName = psData.data[0].name;
+
+    $("#root-selector").val(firstName).change();
+}
+
+async function rootChanged(event) {
+    let selectedTraceName = $(event.target).val();
+    await selectTrace(selectedTraceName)
+}
+
+async function selectTrace(traceName) {
+    const trace = window.pview.traces[traceName];
+    $("#content > *").remove()
+    window.pview.currentPlot = await Plotly.newPlot("content", trace);
+    $("#content").on("plotly_click", onPlotClick)
+}
+
+async function onPlotClick(event, clickEventAndPoints) {
+    debugger;
+    const points = clickEventAndPoints['points']
+    if (!Array.isArray(points)) {
+        throw new Error(`The returned 'points' data was not a valid array`);
+    }
+    else if (points.length === 0) {
+        return
+    }
+
+    const point = points[0];
+    if (typeof point.id !== "number") {
+        return;
+    }
+
+    const processInfo = await fetch(`/pid/${point.id}`).then(response => response.json())
+    debugger;
 }

@@ -13,6 +13,7 @@ class ApplicationArguments:
     def __init__(self, *argv):
         self.__port: typing.Optional[int] = None
         self.__index_page: typing.Optional[str] = None
+        self.__include_self: bool = False
 
         self.__parse_arguments(*argv)
 
@@ -23,6 +24,10 @@ class ApplicationArguments:
     @property
     def index_page(self) -> str:
         return self.__index_page
+
+    @property
+    def include_self(self) -> bool:
+        return self.__include_self
 
     def __parse_arguments(self, *argv):
         parser = argparse.ArgumentParser(
@@ -46,8 +51,17 @@ class ApplicationArguments:
             help="The path to the index page"
         )
 
+        parser.add_argument(
+            "--include-self",
+            dest="include_self",
+            default=False,
+            action="store_true",
+            help="Include the calling application within PS results"
+        )
+
         parameters = parser.parse_args(argv)
 
         self.__port = parameters.port
         self.__index_page = parameters.index_page
+        self.__include_self = parameters.include_self
 

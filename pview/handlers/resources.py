@@ -4,12 +4,12 @@
 from __future__ import annotations
 import typing
 import pathlib
-from dataclasses import dataclass
 
 from aiohttp import web
 
 from pview.utilities.common import local_only
 from pview.utilities import mimetypes
+from pview.utilities.route import RouteInfo
 
 RESOURCE_DIRECTORY = pathlib.Path(__file__).parent.parent / "static"
 SCRIPT_DIRECTORY = RESOURCE_DIRECTORY / "scripts"
@@ -25,27 +25,6 @@ RESOURCE_MAP = {
     "images": IMAGE_DIRECTORY,
     "image": IMAGE_DIRECTORY
 }
-
-
-@dataclass
-class RouteInfo:
-    path: str
-    handler: typing.Callable[[web.Request], typing.Coroutine[typing.Any, typing.Any, web.Response]]
-    name: typing.Optional[str]
-
-    def is_local_only(self) -> bool:
-        return getattr(self.handler, "local_only", False)
-
-    def register_get(self, application: web.Application):
-        if not self.is_local_only():
-            raise Exception(
-                f"Only local views may be registered - the view for {self.path} isn't local only. "
-                f"Please decorate it with '@local_only'"
-            )
-
-        application.add_routes([
-            web.get(self.path, handler=self.handler)
-        ])
 
 
 def get_content_type(resource_type: str, filename: pathlib.Path) -> typing.Optional[str]:

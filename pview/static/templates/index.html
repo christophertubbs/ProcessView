@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Process View</title>
-        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+        <script src="/scripts/plotly/plotly.min.js"></script>
         <script>
             if (!Object.hasOwn(window, 'pview')) {
                 console.log("Creating a new pview namespace from index.html");
@@ -28,9 +28,9 @@
                 <h1>Process View</h1>
             </div>
             <div id="global-toolbar" class="pview-toolbar pview-global-toolbar">
-                <button id="load-button" class="pview-when-connected">Load</button>
-                <input class="pview-when-disconnected" type="text" id="connection-path" value="ws">
-                <button class="pview-when-disconnected" id="connect-button">Connect</button>
+                <select class="pview-select" id="root-selector"></select>
+                <span id="total-memory-used-indicator" class="pview-toolbar-text">Total Memory Used: <span id="total-memory-used"></span></span>
+                <span id="total-cpu-used-indicator" class="pview-toolbar-text">CPU Usage: <span id="total-cpu-used"></span></span>
             </div>
             <div id="content" style="height:85vh; width:85vw;">
             </div>

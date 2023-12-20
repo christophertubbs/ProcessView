@@ -62,10 +62,15 @@ input#open-path {
 .pview-toolbar {
     height: var(--toolbar-height);
     background-color: var(--toolbar-background-color);
+    display: flex;
 }
 
-.pview-toolbar button, .pview-toolbar input {
+.pview-toolbar button, .pview-toolbar input, .pview-toolbar select {
     height: var(--toolbar-height);
+}
+
+.pview-toolbar-text {
+    margin: auto 25px;
 }
 
 .pview-table, .pview-table-row, .pview-table-cell {

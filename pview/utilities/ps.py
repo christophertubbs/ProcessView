@@ -12,6 +12,8 @@ from typing import Iterator
 import psutil
 from psutil import Process
 
+import pview.application_details as application_details
+
 
 B_IN_KB = 1000
 B_IN_MB = B_IN_KB * 1000
@@ -179,7 +181,7 @@ class ProcessStatus:
     def latest(cls) -> ProcessStatus:
         return cls()
 
-    def __init__(self):
+    def __init__(self, include_self: bool = None):
         recorded_processes: typing.Dict[int, ProcessEntry] = {
             process.pid: ProcessEntry.from_process(process)
             for process in psutil.process_iter()
@@ -192,15 +194,16 @@ class ProcessStatus:
             if process is not None
         }
 
-        current_pid = os.getpid()
+        if not include_self:
+            current_pid = os.getpid()
 
-        while current_pid != 1 and current_pid in self.__processes:
-            current_process = self.__processes.pop(current_pid, None)
-            print(f"Ignoring {current_process}")
-            if current_process is None:
-                current_pid = 1
-            else:
-                current_pid = current_process.parent_process_id
+            while current_pid != 1 and current_pid in self.__processes:
+                current_process = self.__processes.pop(current_pid, None)
+                print(f"Ignoring {current_process}")
+                if current_process is None:
+                    current_pid = 1
+                else:
+                    current_pid = current_process.parent_process_id
 
     def __contains__(self, item):
         return item in self.__processes
