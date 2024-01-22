@@ -40,11 +40,6 @@ export class DataResponse {
     }
 }
 
-if (!Object.hasOwn(window, "pview")) {
-    console.log("Creating a new pview namespace");
-    window.pview = {};
-}
-
 window.pview.DataResponse = DataResponse;
 window.pview.AcknowledgementResponse = AcknowledgementResponse;
 window.pview.OpenResponse = OpenResponse;

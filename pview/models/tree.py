@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import os
 import json
 import typing
 from collections import defaultdict
@@ -18,11 +19,14 @@ from pydantic import PrivateAttr
 
 from utilities.ps import ProcessStatus
 from utilities.ps import ProcessEntry
-from utilities.ps import byte_size_to_text
+from utilities.ps import SizeUnit
+from utilities.ps import describe_memory
 
 SEPARATOR = "/"
+"""The separator used to join collapsed path names"""
 
 VALUE_SEQUENCE = typing.Union[typing.List[str], typing.List[typing.Optional[int]], typing.List[typing.Optional[float]]]
+"""A list of all strings, a list of all integers, or a list of all floats"""
 
 
 class Sunburst:
@@ -190,15 +194,6 @@ class Sunburst:
                 )
 
     def to_figure(self, **kwargs) -> graph_objects.Figure:
-        expected_figure_count = len(self.__traces) + 1
-
-        positions = [
-            divmod(figure_index, 3)
-            for figure_index in range(expected_figure_count)
-        ]
-
-        row_count = max([coordinates[0] for coordinates in positions]) + 1
-
         figure = graph_objects.Figure()
 
         figure.update_layout(
@@ -215,7 +210,7 @@ class Sunburst:
             hovertemplate='%{label}<br>%{text}',
             name="All",
             text=[
-                byte_size_to_text(value)
+                describe_memory(value, SizeUnit.KB)
                 for value in self.values
             ],
             maxdepth=3,
@@ -235,7 +230,7 @@ class Sunburst:
                 hovertemplate='%{label}<br>%{text}',
                 name=trace_name,
                 text=[
-                    byte_size_to_text(value)
+                    describe_memory(value, SizeUnit.KB)
                     for value in trace[self.values_key()]
                 ],
                 **kwargs
@@ -316,9 +311,6 @@ class ProcessLeaf(BaseModel):
     memory_amount: typing.Optional[str] = Field(default=None)
     state: str
     user: str
-    thread_count: typing.Optional[int] = Field(default=1)
-    open_file_count: typing.Optional[int] = Field(default=0)
-    file_descriptor_count: typing.Optional[int] = Field(default=0)
     command: str
     arguments: typing.Optional[typing.Union[typing.List[str], str]] = Field(default_factory=list)
     name: str
@@ -336,12 +328,9 @@ class ProcessLeaf(BaseModel):
             memory_amount=entry.memory_amount,
             state=entry.status,
             user=entry.user,
-            thread_count=entry.thread_count,
-            open_file_count=entry.open_file_count,
-            file_descriptor_count=entry.file_descriptor_count,
             command=entry.executable or entry.name,
             arguments=entry.arguments,
-            name=entry.name
+            name=entry.executable_parts[-1]
         )
 
     def add_instance(self, entry: ProcessEntry):
@@ -368,21 +357,6 @@ class ProcessLeaf(BaseModel):
         elif entry.memory_percent is not None:
             self.memory_percent = entry.memory_percent
 
-        if self.thread_count is not None and entry.thread_count is not None:
-            self.thread_count += entry.thread_count
-        elif entry.thread_count is not None:
-            self.thread_count = entry.thread_count
-
-        if self.open_file_count is not None and entry.open_file_count is not None:
-            self.open_file_count += entry.open_file_count
-        elif entry.open_file_count is not None:
-            self.open_file_count = entry.open_file_count
-
-        if self.file_descriptor_count is not None and entry.file_descriptor_count is not None:
-            self.file_descriptor_count += entry.file_descriptor_count
-        elif entry.file_descriptor_count is not None:
-            self.file_descriptor_count = entry.file_descriptor_count
-
         self.instance_count += 1
 
     @property
@@ -404,6 +378,12 @@ class ProcessLeaf(BaseModel):
         return self.count
 
     def duplicate(self, parent: typing.Union[ProcessNode, ProcessTree] = None) -> ProcessLeaf:
+        """
+        Make a deep copy of the process metadata separated from its current parent node
+
+        :param parent: A parent node that will contain the new process data
+        :return: The copied leaf
+        """
         new_leaf = ProcessLeaf(
             process_id=self.process_id,
             parent_process_id=self.parent_process_id,
@@ -413,9 +393,6 @@ class ProcessLeaf(BaseModel):
             memory_amount=self.memory_amount,
             state=self.state,
             user=self.user,
-            thread_count=self.thread_count,
-            open_file_count=self.open_file_count,
-            file_descriptor_count=self.file_descriptor_count,
             command=self.command,
             arguments=self.arguments,
             name=self.name
@@ -519,7 +496,6 @@ class ProcessNode(BaseModel):
             current_element = current_element._parent
 
         return current_depth
-
 
     @classmethod
     def sunburst(cls, value_attribute: str = None) -> graph_objects.Figure:
@@ -752,7 +728,7 @@ class ProcessNode(BaseModel):
         return self.count
 
     def __str__(self):
-        return f"{self.node_id} ({byte_size_to_text(self.memory_usage)})"
+        return f"{self.node_id} ({describe_memory(self.memory_usage, SizeUnit.KB)})"
 
     def __repr__(self):
         return self.__str__()
@@ -846,12 +822,16 @@ class ProcessTree(BaseModel):
 
     @property
     def cpu_percent(self) -> typing.Union[int, float]:
-        percent = sum([
+        accumulated_percent = sum([
             child.cpu_percent
             for child in self.children
             if isinstance(child.cpu_percent, (int, float))
         ])
-        return percent
+
+        max_possible_percent = os.cpu_count() * 100.0
+        percent = accumulated_percent / max_possible_percent
+        scaled_percent = percent * 100
+        return scaled_percent
 
     @property
     def memory_usage(self) -> typing.Union[int, float]:

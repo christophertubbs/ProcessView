@@ -11,28 +11,26 @@ from aiohttp import web
 from application import LocalApplication
 from application_details import APPLICATION_NAME
 from application_details import INDEX_PAGE
-from handlers import ps_with_self
-from handlers import ps_without_self
-from handlers import register_resource_handlers
-from handlers import get_process
-from launch_parameters import ApplicationArguments
 
-from pview.handlers import handle_index
+from handlers import Index
+from handlers import GetProcessView
+from handlers import PS
+from handlers import KillProcess
+from handlers import register_resource_handlers
+from launch_parameters import ApplicationArguments
 
 
 def serve(arguments: ApplicationArguments):
-    application = LocalApplication()
+    application = LocalApplication(include_self=arguments.include_self)
 
     application.add_routes([
-        web.get("/pid/{pid:\d+}", handler=get_process)
+        GetProcessView.create_route(method="get", path="/pid/{pid:\d+}"),
+        Index.create_route(method="get", path=f"/{INDEX_PAGE}"),
+        KillProcess.create_route(method="get", path="/kill/{pid:\d+}"),
+        PS.create_route(method="get", path="/ps"),
     ])
 
     register_resource_handlers(application)
-
-    application.add_routes([
-        web.get(f"/{INDEX_PAGE}", handler=handle_index),
-        web.get(f"/ps", handler=ps_with_self if arguments.include_self else ps_without_self),
-    ])
 
     print(f"Access {APPLICATION_NAME} from http://0.0.0.0:{arguments.port}/{INDEX_PAGE}")
 

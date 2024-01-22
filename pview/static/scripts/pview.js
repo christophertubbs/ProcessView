@@ -1,9 +1,12 @@
-import {closeAllDialogs, openDialog} from "./utility.js";
-import {AcknowledgementResponse, DataResponse, OpenResponse} from "./responses.js";
-import {DatasetView} from "./views/metadata.js";
-import {BooleanValue, ListValue, ListValueAction} from "./value.js";
-
-const PREVIOUS_PATH_KEY = "previousPath";
+import {closeAllDialogs, describeMemory, describeNumber, openDialog, request_json} from "./utility.js";
+import {BooleanValue} from "./value.js";
+import {createTable} from "./elements.js";
+import {ErrorView} from "./views/error.js";
+import {ProcessKilledView} from "./views/kill.js";
+import {Communicator} from "./communication.js";
+import {ProcessView} from "./views/process.js";
+import {ProcessInformationResponse} from "./messaging/response.js";
+import {ProcessInformation} from "./process.js";
 
 function initializeBackingVariables() {
     const connected = BooleanValue.True;
@@ -25,71 +28,6 @@ function initializeBackingVariables() {
             enumerable: true
         }
     )
-
-    Object.defineProperty(
-        pview,
-        "datasets",
-        {
-            value: new ListValue(
-                [],
-                handleDatasetAddition,
-                handleDatasetRemoval,
-                toggleContentLoadStatus
-            ),
-            enumerable: true
-        }
-    )
-}
-
-async function initializeClient() {
-
-    const client = new pview.PViewClient();
-
-    client.addHandler("open", () => pview.connected = true);
-    client.addHandler("closed", () => pview.connected = false);
-    client.addHandler("load", dataLoaded);
-    client.addHandler("error", handleError);
-
-    client.registerPayloadType("connection_opened", OpenResponse);
-    client.registerPayloadType("data", DataResponse);
-    client.registerPayloadType("acknowledgement", AcknowledgementResponse);
-    client.registerPayloadType("load", DataResponse)
-
-    Object.defineProperty(
-        pview,
-        "client",
-        {
-            value: client,
-            enumerable: true
-        }
-    )
-
-    pview.connected = false;
-    await pview.client.connect("ws");
-}
-
-function toggleContentLoadStatus() {
-    const isEmpty = pview.datasets.isEmpty();
-
-    const contentToShow = $(isEmpty ? "#no-content-block" : "#content");
-    const contentToHide = $(isEmpty ? "#content" : "#no-content-block");
-
-    contentToShow.show();
-    contentToHide.hide();
-}
-
-function contentHasBeenLoaded(wasLoaded, isNowLoaded) {
-    if (wasLoaded === isNowLoaded) {
-        return;
-    }
-
-    const contentToHide = $(isNowLoaded ? "#no-content-block" : "#content");
-    const contentToShow = $(isNowLoaded ? "#content" : "#no-content-block");
-
-    contentToHide.hide();
-    contentToShow.show();
-
-    console.log("The content loaded state should now be reflected");
 }
 
 function socketIsConnected(wasConnected, isNowConnected) {
@@ -104,37 +42,10 @@ function socketIsConnected(wasConnected, isNowConnected) {
     contentToShow.show();
 }
 
-/**
- *
- * @param payload {DataResponse}
- */
-function addDatasetView(payload) {
-    try {
-        const view = new DatasetView(payload);
-        view.render("#content", "#content-tabs");
-    } catch (e) {
-        console.error(e);
-    }
-    closeLoadingModal();
-}
-
-async function handleError(payload) {
-    $("#failed_message_type").text(Boolean(payload['message_type']) ? payload["message_type"] : "Unknown")
-    $("#failed-message-id").text(payload['message_id']);
-    $("#error-message").text(payload['error_message']);
-    openDialog("#error-dialog");
-}
-
 function initializeModals() {
     $(".pview-modal:not(#load-dialog):not(#loading-modal)").dialog({
         modal: true,
         autoOpen: false
-    });
-
-    $("#error-dialog").dialog({
-        modal: true,
-        autoOpen: false,
-        width: "20%"
     });
 
     $("#loading-modal").dialog({
@@ -143,97 +54,93 @@ function initializeModals() {
         width: "50%",
         height: 200
     })
+
+    $("#loading-progress-bar").progressbar({
+        value: false
+    })
+
+    pview.errorView = new ErrorView(document.getElementsByTagName("body")[0]);
+    pview.processView = ProcessView.create(
+        "pview",
+        "popup-container",
+        "process-dialog",
+        "Process",
+        "process-info",
+        "process-info",
+        killProcess
+    )
+    pview.killedProcessView = ProcessKilledView.create(
+        "pview",
+        "popup-container",
+        "killed-process-info",
+        "Process Killed"
+    )
 }
 
 async function initialize() {
+    $("#root-selector").on("change", rootChanged);
+
     initializeBackingVariables();
     initializeModals();
-    $("#loading-progress-bar").progressbar({value: false});
+
     $("button").button();
-    $("#content").tabs();
-    toggleContentLoadStatus();
 
-    Object.defineProperty(
-        pview,
-        "refreshTabs",
-        {
-            value: () => {
-                const tabsView = $("#content").tabs();
-                tabsView.tabs("refresh");
-                tabsView.off("click");
-                tabsView.on("click", "span.ui-icon-close", function() {
-                    pview.removeData(this.dataset.data_id);
-                });
-            },
-            enumerable: true
+    $("#loading-modal").dialog("open");
+    $("#kill-process-button").on("click", killProcess)
+    $("#resample-button").on("click", resample);
+}
+
+document.addEventListener(
+    "DOMContentLoaded",
+    async function() {
+        await initialize();
+        const dataLoaded = await loadPS();
+
+        if (dataLoaded) {
+            closeAllDialogs();
         }
-    );
-
-    Object.defineProperty(
-        pview,
-        "removeData",
-        {
-            value: (data_id) => {
-                const responseIndex = pview.datasets.findIndex((response) => response.data_id === data_id);
-
-                if (responseIndex >= 0) {
-                    pview.datasets.removeAt(responseIndex);
-                }
-            }
+        else {
+            $("#loading-modal").dialog("close");
         }
-    )
-
-    $("#close-loading-modal-button").on("click", closeLoadingModal);
-
-    await initializeClient();
-}
-
-function removeTab(removalEvent) {
-
-}
-
-async function loadDataClicked(event) {
-    const url = $("input#open-path").val();
-    await getData(url);
-    localStorage.setItem(PREVIOUS_PATH_KEY, url);
-}
-
-document.addEventListener("DOMContentLoaded", async function(event) {
-    $("#root-selector").on("change", rootChanged);
-    //await initialize();
-    await loadPS()
 });
 
-function closeLoadingModal() {
+async function resample() {
     closeAllDialogs();
+
+    $("#loading-modal").dialog("open");
+    const success = await loadPS();
+
+    if (success) {
+        closeAllDialogs();
+    }
 }
 
-window.diagnostics = {}
-
 async function loadPS() {
-    const psData = await fetch("/ps").then((response) => response.json());
-    window.pview.traces = {};
+    return await pview.communicate(
+        "/ps",
+        function(psData) {
+            $("#total-cpu-used").text(psData.cpu_percent);
+            $("#total-memory-used").text(psData.memory_usage);
 
-    $("#total-cpu-used").text(psData.cpu_percent);
-    $("#total-memory-used").text(psData.memory_usage);
+            pview.diagnostics['plotData'] = psData;
 
-    window.diagnostics['plotData'] = psData;
+            $("#root-selector > *").remove()
+            const rootSelector = $("#root-selector");
 
-    $("#root-selector > *").remove()
+            for (let dataIndex = 0; dataIndex < psData.data.length; dataIndex++) {
+                let name = psData.data[dataIndex].name;
+                pview.traces[name] = {
+                    data: [psData.data[dataIndex]],
+                    layout: psData.layout
+                }
+                rootSelector.append(`<option value="${name}">${name}</option>`)
+            }
 
-    for (let dataIndex = 0; dataIndex < psData.data.length; dataIndex++) {
-        let name = psData.data[dataIndex].name;
-        let trace = {
-            data: [psData.data[dataIndex]],
-            layout: psData.layout
+            const firstName = psData.data[0].name;
+
+            rootSelector.val(firstName).change();
         }
-        window.pview.traces[name] = trace;
-        $("#root-selector").append(`<option value="${name}">${name}</option>`)
-    }
-
-    const firstName = psData.data[0].name;
-
-    $("#root-selector").val(firstName).change();
+    )
 }
 
 async function rootChanged(event) {
@@ -242,15 +149,15 @@ async function rootChanged(event) {
 }
 
 async function selectTrace(traceName) {
-    const trace = window.pview.traces[traceName];
+    const trace = pview.traces[traceName];
     $("#content > *").remove()
-    window.pview.currentPlot = await Plotly.newPlot("content", trace);
+    pview.currentPlot = await Plotly.newPlot("content", trace);
     $("#content").on("plotly_click", onPlotClick)
 }
 
 async function onPlotClick(event, clickEventAndPoints) {
-    debugger;
     const points = clickEventAndPoints['points']
+
     if (!Array.isArray(points)) {
         throw new Error(`The returned 'points' data was not a valid array`);
     }
@@ -263,6 +170,113 @@ async function onPlotClick(event, clickEventAndPoints) {
         return;
     }
 
-    const processInfo = await fetch(`/pid/${point.id}`).then(response => response.json())
-    debugger;
+    //await pview.communicate(`/pid/${point.id}`, loadProcessInformation);
+    await pview.communicate(
+        `/pid/${point.id}`,
+        function(response) {
+            const data = new ProcessInformation(response);
+            pview.processView.process = data;
+            pview.processView.show();
+        }
+    );
 }
+
+function loadProcessInformation(processInfo) {
+    if (processInfo.can_modify) {
+        $("#process-toolbar").show();
+    } else {
+        $("#process-toolbar").hide();
+    }
+
+    let rows = [
+        {
+            key: "Name",
+            value: processInfo.name
+        },
+        {
+            key: "Command",
+            value: processInfo.command
+        },
+        {
+            key: "Process ID",
+            value: processInfo.process_id
+        },
+        {
+            key: "Owner",
+            value: processInfo.username
+        }
+    ];
+
+    if (processInfo.create_time) {
+        rows.push({
+            key: "Launch Time",
+            value: processInfo.create_time
+        })
+    }
+
+    rows = rows.concat([
+        {
+            key: "CPU",
+            value: `${describeNumber(processInfo.cpu_percent)}%`
+        },
+        {
+            key: "Memory",
+            value: `${describeNumber(processInfo.memory_percent)}%`
+        },
+        {
+            key: "Memory Usage",
+            value: describeMemory(processInfo.memory_usage)
+        }
+    ]);
+
+    let processTable = createTable(
+        "processTable",
+        "process",
+        rows,
+        null,
+        null,
+        false
+    );
+
+    $("#process-data *").remove();
+    $("#process-data").append(processTable);
+
+    const processDialog = $("#process-dialog")
+
+    processDialog.dialog("option", "width", "auto");
+    processDialog.dialog("option", "height", "auto");
+    processDialog.dialog("option", "title", processInfo.name);
+
+    processDialog.dialog("open");
+
+    $("#kill-process-button").attr("data-pid", processInfo.process_id);
+}
+
+
+async function killProcess(event) {
+    const pid = event.target.dataset['pid'];
+
+    closeAllDialogs()
+
+    await pview.communicate(
+        `/kill/${pid}`,
+        async function(response) {
+            pview.killedProcessView.messageID = response.message_id;
+            pview.killedProcessView.killedProcess = response.process;
+            pview.killedProcessView.killedProcessMessage = response.message;
+            pview.killedProcessView.show()
+            await loadPS();
+    });
+}
+
+function reportError(errorData) {
+    closeAllDialogs();
+    pview.errorView.show(
+        errorData.message_id,
+        errorData.message_type,
+        errorData.error_message
+    );
+}
+
+window.pview.Communicator = new Communicator(reportError);
+window.pview.communicate = async (address, onSuccess) => window.pview.Communicator.communicate(address, onSuccess);

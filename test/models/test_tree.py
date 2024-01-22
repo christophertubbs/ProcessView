@@ -7,13 +7,10 @@ from pview.models.tree import ProcessNode
 class ProcessTreeTest(unittest.TestCase):
     def test_something(self):
         latest_ps = ps.ProcessStatus()
-        process: ps.ProcessEntry = next((
-            process
-            for process in latest_ps.processes
-            if process.memory_percent is not None
-               and process.current_cpu_percent is not None
-               and process.status == 'running'
-        ), None)
+
+        self.assertGreater(len(latest_ps), 0)
+
+        process: ps.ProcessEntry = latest_ps.processes[0]
 
         self.assertIsNotNone(process)
 

@@ -103,3 +103,11 @@ input#open-path {
 .ui-icon-close {
     cursor: pointer;
 }
+
+#process-data.pview-table-container table tbody tr td:first-child {
+    width: 150px;
+}
+
+#process-data table td {
+    padding: 5px;
+}

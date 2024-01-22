@@ -7,7 +7,12 @@
         <script>
             if (!Object.hasOwn(window, 'pview')) {
                 console.log("Creating a new pview namespace from index.html");
-                window.pview = {};
+                window.pview = {
+                    classes: {},
+                    traces: {},
+                    diagnostics: {},
+                    datasets: []
+                };
             }
         </script>
         <link rel="stylesheet" href="/scripts/jquery/jquery-ui.css">
@@ -20,6 +25,13 @@
         <script type="module" src="/scripts/client.js"></script>
         <script type="module" src="/scripts/responses.js"></script>
         <script type="module" src="/scripts/requests.js"></script>
+        <script type="module" src="/scripts/messaging/base.js"></script>
+        <script type="module" src="/scripts/messaging/error.js"></script>
+        <script type="module" src="/scripts/messaging/response.js"></script>
+        <script type="module" src="/scripts/views/popup.js"></script>
+        <script type="module" src="/scripts/views/kill.js"></script>
+        <script type="module" src="/scripts/views/error.js"></script>
+        <script type="module" src="/scripts/views/process.js"></script>
         <script type="module" src="/scripts/pview.js"></script>
     </head>
     <body>
@@ -28,6 +40,7 @@
                 <h1>Process View</h1>
             </div>
             <div id="global-toolbar" class="pview-toolbar pview-global-toolbar">
+                <button id="resample-button" class="pview-button">Resample</button>
                 <select class="pview-select" id="root-selector"></select>
                 <span id="total-memory-used-indicator" class="pview-toolbar-text">Total Memory Used: <span id="total-memory-used"></span></span>
                 <span id="total-cpu-used-indicator" class="pview-toolbar-text">CPU Usage: <span id="total-cpu-used"></span></span>
@@ -35,26 +48,13 @@
             <div id="content" style="height:85vh; width:85vw;">
             </div>
         </div>
-        <div id="loading-modal" class="pview-dialog pview-modal pview-loading-dialog">
+        <div id="popup-container" class="pview-popup-container"></div>
+        <div id="loading-modal" class="pview-dialog pview-modal pview-loading-dialog" title="Loading">
             <p>
-                Loading the <span id="currently-loading-dataset"></span> dataset
+                Loading <code>ps</code> Data...
             </p>
             <div id="loading-progress-bar"></div>
             <button id="close-loading-modal-button">OK</button>
-        </div>
-        <div id="load-dialog" class="pview-dialog pview-modal pview-input-dialog" title="Load Netcdf File">
-            <div id="load-dialog-content" class="pview-dialog-content">
-                <input id="open-path" name="open-path">
-                <button id="open-dataset-button">Load</button>
-            </div>
-        </div>
-        <div id="error-dialog" class="pview-dialog pview-modal pview-error-dialog" title="Error">
-            <div id="error-dialog-content" class="pview-dialog-content pview-error-content">
-                <b>Message ID:</b> <span id="failed-message-id" class="pview-error-details"></span>
-                <br>
-                <b>Failed on:</b> <span id="failed_message_type" class="pview-error-details"></span>
-                <p id="error-message" class="pview-error-message"></p>
-            </div>
         </div>
     </body>
 </html>

@@ -7,6 +7,7 @@ import pathlib
 
 from aiohttp import web
 
+from messages.responses import ErrorResponse
 from pview.utilities.common import local_only
 from pview.utilities import mimetypes
 from pview.utilities.route import RouteInfo
@@ -40,7 +41,8 @@ async def get_resource(request: web.Request) -> web.Response:
     resource_type: str = request.match_info['resource_type']
 
     if resource_type not in RESOURCE_MAP:
-        return web.HTTPNotAcceptable(text=f"{resource_type} is not a valid type of resource")
+        not_valid = ErrorResponse(code=406, error_message=f"{resource_type} is not a valid type of resource")
+        return not_valid.create_web_response()
 
     resource_name: str = request.match_info['name']
     resource_directory = get_resource_directory(resource_type)
@@ -60,7 +62,8 @@ async def get_resource(request: web.Request) -> web.Response:
                 content_type=content_type
             )
 
-    return web.HTTPNotFound(text=f"No resource was found at '{resource_path}'")
+    not_found = ErrorResponse(code=404, error_message=f"No resource was found at '{resource_path}'")
+    return not_found.create_web_response()
 
 
 @local_only

@@ -59,3 +59,55 @@ export function openDialog(selector) {
     closeAllDialogs();
     $(selector).dialog("open");
 }
+
+export async function request_json(input, init) {
+    const raw_response = await fetch(input, init).then(response => response.text());
+    let response;
+    try {
+        response = JSON.parse(raw_response);
+    } catch (e) {
+        response = {
+            text: raw_response,
+            error: e.toString()
+        }
+    }
+
+    return response;
+}
+
+export const MEMORY_FACTORS = Object.freeze({
+    B: 1000**0,
+    KB: 1000**1,
+    MB: 1000**2,
+    GB: 1000**3
+});
+
+export function describeNumber(amount) {
+    if (typeof amount !== 'number') {
+        return "??";
+    }
+    return amount.toLocaleString()
+}
+
+export function describeMemory(amount, unit) {
+    let current_amount = undefined;
+    let current_unit = null;
+
+    if (["null", "undefined"].includes(typeof unit)) {
+        unit = MEMORY_FACTORS.B;
+    }
+
+    amount = amount * unit;
+
+    for (let [memory_unit, bytes_in_memory_unit] of Object.entries(MEMORY_FACTORS)) {
+        if (typeof current_unit !== 'undefined' && current_amount < 1000) {
+            break;
+        }
+
+        current_amount = amount / bytes_in_memory_unit;
+        current_unit = memory_unit;
+    }
+
+    let described_amount = describeNumber(current_amount);
+    return `${described_amount}${current_unit}`;
+}

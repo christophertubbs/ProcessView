@@ -18,6 +18,8 @@ from psutil import Process
 from pydantic import BaseModel
 from pydantic import Field
 
+from utilities.ps import SizeUnit
+from utilities.ps import describe_memory
 from .base import PViewResponse
 
 
@@ -496,7 +498,6 @@ class ProcessInformation(BaseModel):
 
         return cls.from_process(process=process)
 
-
     @classmethod
     def from_process(cls, process: Process) -> ProcessInformation:
         safety_data: typing.Dict[str, typing.Any] = process.as_dict()
@@ -534,10 +535,11 @@ class ProcessInformation(BaseModel):
         )
 
         transformer.add_field(
+            "memory_usage",
+            lambda proc: describe_memory(proc.memory_info().rss, SizeUnit.KB),
+            lambda proc: proc.memory_info,
             from_field="memery_info",
-            to_field="memory_usage",
-            accessor=lambda proc: proc.memory_info.rss,
-            post_process=lambda val: val[1] if isinstance(val, typing.Sequence) else val
+            post_process=lambda val: getattr(val, "rss", val)
         )
 
         transformer.add_field(
@@ -625,6 +627,31 @@ class ProcessInformationResponse(PViewResponse):
             raise HTTPNotFound(reason=f"There are no running processes with a pid of {process_id}")
 
         return cls(operation=operation, process=information, message_id=message_id)
+
+
+class KillResponse(PViewResponse):
+    process: ProcessInformation = Field(description="Information about the inquired process")
+    message: str
+    success: bool
+
+    @classmethod
+    def for_process(cls, operation: str, process: Process, success: bool, message: str = None, message_id: str = None):
+        information = ProcessInformation.from_process(process=process)
+
+        if message is None:
+            if success:
+                message = f"{information.name} ({information.process_id}) Killed"
+            else:
+                message = f"{information.name} ({information.process_id}) could not be killed."
+
+        return cls(
+            operation=operation,
+            process=information,
+            message=message,
+            success=success,
+            message_id=message_id
+        )
+
 
 
 class MultipleProcessInformationResponse(PViewResponse):
